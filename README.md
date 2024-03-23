@@ -14,20 +14,19 @@ If you're on an Apple Silicon Mac, you can clone the Conda environment from the 
 
 
 ## Model Conversion
-With dependencies installed, all you have to do is run `GENA-LM.py`. The script will:
+With the dependencies installed, all you have to do is run `GENA.py`. The script will:
 
 1.	Build GENA-LM from `src/modeling_bert.py` and download the pre-trained [weights](https://huggingface.co/AIRI-Institute/gena-lm-bert-base) and tokenizer from Hugging Face’s model hub
 
 2.  Instantiate an optimized version of the model from `BertANE.py` (see *Optimizations*)
 
+3.  Remove the untrained classification heads from both models
 
-3.  Remove the classification heads from both models to reveal their final hidden states', i.e, our 'features'
+5.	Trace the optimized, trimmed model to get a *TorchScript* representation
 
-5.	Trace the optimized model with dummy inputs to get a *TorchScript* representation
+6.	Convert the trace using Core ML Tools and save it to disk as a Core ML model package `GENA.mlpackage`
 
-6.	Convert the trace with Core ML Tools and save it to disk as a Core ML model package `GENA.mlpackage`
-
-7.	Load the model package from disk and verify its outputs against the original; if the outputs match you should see the message 'Congrats on the new model!'
+7.	Load the model package from disk and verify its outputs; if the outputs match you should see the message 'Congrats on the new model!'
 
 ## Inference
 Incorporate the model package, tokenizer and vocab files (`GENA.mlpackage`, `BPTokenizer.swift`, `vocab.json`) into your project. Xcode will automatically generate a Swift class for your model. The tokenizer will load the vocab from file and has functions for tokenizing and byte-pair encoding DNA sequences. The model expects as input up to 510 BP-encoded kmers (plus 2 model tokens), which depending on the sequence, can mean inputs up to 4.5 kb long. 
@@ -47,7 +46,7 @@ guard let output = try? model.prediction(input_ids: encodedInput) else {
 }
 print(output.features)
 ```
-The output is a [MLMultiArray](https://developer.apple.com/documentation/coreml/mlmultiarray) of size [1, maxTokens, features], i.e., [1, 512, 768]. Please refer to the `GENA Demo` project for more details on using the converted model.
+The output is a 2D [MLMultiArray](https://developer.apple.com/documentation/coreml/mlmultiarray) of size [token_ids, features], i.e., [token_ids, 768]. Please refer to the `GENA Demo` project for more details on using the converted model.
 
 ## Optimizations
 The pre-trained model can be converted as-is with Core ML Tools. However, the resulting .mlpackage incurs **large** memory spikes during inference. Following guidance from [this](https://machinelearning.apple.com/research/neural-engine-transformers) paper, the following changes were made prior to conversion:
